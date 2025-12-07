@@ -1,0 +1,17 @@
+[package]
+name = "color"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = ["std"]
+std = []
+num-traits = ["dep:num-traits"]
+
+[dependencies]
+
+[dependencies.num-traits]
+version = "0.2.19"
+optional = true
+default-features = false
+features = ["libm"]

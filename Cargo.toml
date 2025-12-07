@@ -1,0 +1,18 @@
+[workspace]
+resolver = "3"
+members = ["color", "firmware", "server"]
+
+[profile.dev.package.firmware]
+# Rust debug is too slow.
+# For debug builds always builds with some optimization
+opt-level = "s"
+
+[profile.firmware]
+inherits = 'release'
+codegen-units = 1        # LLVM can perform better optimizations using a single thread
+debug = 2
+debug-assertions = false
+incremental = false
+lto = 'fat'
+opt-level = 's'
+overflow-checks = false

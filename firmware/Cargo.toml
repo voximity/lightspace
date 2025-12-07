@@ -1,0 +1,65 @@
+[package]
+edition = "2024"
+name = "firmware"
+rust-version = "1.88"
+version = "0.1.0"
+
+[[bin]]
+name = "firmware"
+path = "./src/main.rs"
+test = false
+bench = false
+doctest = false
+
+[dependencies]
+color = { path = "../color", default-features = false, features = ["num-traits"] }
+esp-hal = { version = "1.0.0", features = ["esp32c6", "unstable"] }
+esp-rtos = { version = "0.2.0", features = [
+  "embassy",
+  "esp-alloc",
+  "esp-radio",
+  "esp32c6",
+] }
+esp-bootloader-esp-idf = { version = "0.4.0", features = ["esp32c6"] }
+embassy-net = { version = "0.7.1", features = [
+  "dhcpv4",
+  "medium-ethernet",
+  "tcp",
+  "udp",
+] }
+embedded-io = "0.7.1"
+embedded-io-async = "0.7.0"
+esp-alloc = "0.9.0"
+# for more networking protocol support see https://crates.io/crates/edge-net
+embassy-executor = { version = "0.9.1", features = [] }
+embassy-time = "0.5.0"
+esp-radio = { version = "0.17.0", features = [
+  "esp-alloc",
+  "esp32c6",
+  "smoltcp",
+  "unstable",
+  "wifi",
+] }
+smoltcp = { version = "0.12.0", default-features = false, features = [
+  "medium-ethernet",
+  "multicast",
+  "proto-dhcpv4",
+  "proto-dns",
+  "proto-ipv4",
+  "socket-dns",
+  "socket-icmp",
+  "socket-raw",
+  "socket-tcp",
+  "socket-udp",
+] }
+critical-section = "1.2.0"
+static_cell = { version = "2.1.1", features = ["nightly"] }
+esp-println = { version = "0.16.1", features = ["esp32c6"] }
+num-traits = { version = "0.2.19", features = [
+  "libm",
+], default-features = false }
+embassy-futures = "0.1.2"
+embassy-sync = "0.7.2"
+
+[build-dependencies]
+dotenvy = "0.15.7"
