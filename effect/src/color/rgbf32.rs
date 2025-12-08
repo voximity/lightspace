@@ -1,6 +1,9 @@
 use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
-use crate::{MapColor, ZipColor, color::HsvF32, math::lerp};
+use crate::{
+    color::{HsvF32, MapColor, ZipColor},
+    math::lerp,
+};
 
 #[cfg(feature = "num-traits")]
 use num_traits::Float;

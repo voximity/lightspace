@@ -1,6 +1,9 @@
 use core::ops::Mul;
 
-use crate::{MapColor, color::RgbF32, math::f32_to_u8};
+use crate::{
+    color::{MapColor, RgbF32},
+    math::f32_to_u8,
+};
 
 #[cfg(feature = "num-traits")]
 use num_traits::Float;
@@ -34,6 +37,10 @@ impl Rgb8 {
 
     pub const fn gray(x: u8) -> Self {
         Self { r: x, g: x, b: x }
+    }
+
+    pub const fn zero() -> Self {
+        Self { r: 0, g: 0, b: 0 }
     }
 
     pub fn gamma_correct(self) -> Self {

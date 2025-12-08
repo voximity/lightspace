@@ -1,4 +1,3 @@
-#![feature(type_alias_impl_trait)]
 #![no_std]
 #![no_main]
 #![deny(
@@ -10,9 +9,14 @@
 mod net;
 mod rmt_led;
 
+use effect::{
+    color::Rgb8,
+    mode::{Bounce, ColorPattern, ColorWheel, EffectMode, StripInfo},
+};
 use embassy_executor::Spawner;
 use embassy_net::StackResources;
 use embassy_sync::mutex::Mutex;
+use embassy_time::Timer;
 use embedded_io::Write;
 use esp_hal::clock::CpuClock;
 use esp_hal::rmt::Rmt;
@@ -24,7 +28,6 @@ use num_traits::Euclid;
 use static_cell::StaticCell;
 
 use crate::rmt_led::{RmtBuf, RmtBufMutex, Strip, Ws2812b};
-use effect::color::{HsvF32, Rgb8, RgbF32};
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -70,11 +73,11 @@ async fn main(spawner: Spawner) -> ! {
     let (stack, runner) = embassy_net::new(wifi_interface, config, stack_resources, seed);
 
     // spawn wifi stuff
-    spawner
-        .spawn(net::connection(wifi_controller, stack))
-        .unwrap();
-    spawner.spawn(net::task(runner)).unwrap();
-    spawner.spawn(net::udp_socket(stack)).unwrap();
+    // spawner
+    //     .spawn(net::connection(wifi_controller, stack))
+    //     .unwrap();
+    // spawner.spawn(net::task(runner)).unwrap();
+    // spawner.spawn(net::udp_socket(stack)).unwrap();
 
     // wait until dhcp gives us an ip
     // loop {
@@ -96,37 +99,33 @@ async fn main(spawner: Spawner) -> ! {
 
     let _ = spawner;
 
+    // TODO: store effects in one location
+    let fx = ColorWheel::default();
+    // let fx = Bounce {
+    //     color: Rgb8::new(255, 0, 0),
+    //     speed: 0.2,
+    // };
+    let strip_info = StripInfo {
+        leds: 300,
+        rev: false,
+    };
+    let mut effect_buf = [Rgb8::zero(); 300];
+
     loop {
         let now = Instant::now().duration_since_epoch().as_millis();
+        fx.update(&strip_info, &mut effect_buf, now);
 
-        {
-            let mut buf = STRIP0_BUF.lock().await;
-            buf.flush();
+        let mut buf = STRIP0_BUF.lock().await;
+        _ = buf.flush();
 
-            for i in 0..300 {
-                let hsv = HsvF32::new(
-                    (-(i as f32 / 100.0) * 360.0 + (now as f32 / 1000.0 * 180.0))
-                        .rem_euclid(&360.0),
-                    1.0,
-                    1.0,
-                );
-
-                let rgb = Rgb8::from(RgbF32::from(hsv))
-                    .gamma_correct()
-                    .brightness(0.4);
-
-                buf.write_color(rgb);
-            }
-
-            // let strip0_buf = STRIP0_BUF.lock().await;
-            // let strip1_buf = STRIP1_BUF.lock().await;
-
-            // render shared buffer to both strips
-            strip0 = strip0.transmit_blocking(&buf).unwrap();
-            strip1 = strip1.transmit_blocking(&buf).unwrap();
+        for px in effect_buf {
+            buf.write_color(px.brightness(0.4));
         }
 
-        // latching just strip0 should be enough for strip1 to catch up
-        strip0.latch().await;
+        // render shared buffer to both strips
+        strip0 = strip0.transmit_blocking(&buf).unwrap();
+        let t = embassy_time::Instant::now();
+        strip1 = strip1.transmit_blocking(&buf).unwrap();
+        Timer::at(t + <Ws2812b as crate::rmt_led::RmtLed>::LATCH).await;
     }
 }

@@ -55,7 +55,7 @@ smoltcp = { version = "0.12.0", default-features = false, features = [
   "socket-udp",
 ] }
 critical-section = "1.2.0"
-static_cell = { version = "2.1.1", features = ["nightly"] }
+static_cell = "2.1.1"
 esp-println = { version = "0.16.1", features = ["esp32c6"] }
 num-traits = { version = "0.2.19", features = [
   "libm",
