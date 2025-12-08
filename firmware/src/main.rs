@@ -12,7 +12,6 @@ mod rmt_led;
 
 use embassy_executor::Spawner;
 use embassy_net::StackResources;
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
 use embedded_io::Write;
 use esp_hal::clock::CpuClock;
@@ -24,8 +23,8 @@ use esp_radio::Controller;
 use num_traits::Euclid;
 use static_cell::StaticCell;
 
-use crate::rmt_led::{RmtBuf, Strip, Ws2812b};
-use color::format::{HsvF32, Rgb8, RgbF32};
+use crate::rmt_led::{RmtBuf, RmtBufMutex, Strip, Ws2812b};
+use effect::color::{HsvF32, Rgb8, RgbF32};
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -40,8 +39,8 @@ static RADIO_CTRL: StaticCell<Controller<'static>> = StaticCell::new();
 static STACK_RESOURCES: StaticCell<StackResources<3>> = StaticCell::new();
 
 const STRIP_BUF_LEN: usize = 24 * 300 + 1;
-pub static STRIP0_BUF: Mutex<CriticalSectionRawMutex, RmtBuf<Ws2812b, STRIP_BUF_LEN>> =
-    Mutex::new(RmtBuf::new());
+pub static STRIP0_BUF: RmtBufMutex<Ws2812b, STRIP_BUF_LEN> = Mutex::new(RmtBuf::new());
+pub static STRIP1_BUF: RmtBufMutex<Ws2812b, STRIP_BUF_LEN> = Mutex::new(RmtBuf::new());
 
 #[esp_rtos::main]
 async fn main(spawner: Spawner) -> ! {
@@ -114,10 +113,13 @@ async fn main(spawner: Spawner) -> ! {
 
                 let rgb = Rgb8::from(RgbF32::from(hsv))
                     .gamma_correct()
-                    .brightness(0.2);
+                    .brightness(0.4);
 
                 buf.write_color(rgb);
             }
+
+            // let strip0_buf = STRIP0_BUF.lock().await;
+            // let strip1_buf = STRIP1_BUF.lock().await;
 
             // render shared buffer to both strips
             strip0 = strip0.transmit_blocking(&buf).unwrap();

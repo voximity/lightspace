@@ -1,4 +1,4 @@
-use color::format::Rgb8;
+use effect::color::Rgb8;
 use embassy_net::{
     Runner, Stack,
     udp::{PacketMetadata, UdpSocket},

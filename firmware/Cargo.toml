@@ -12,7 +12,9 @@ bench = false
 doctest = false
 
 [dependencies]
-color = { path = "../color", default-features = false, features = ["num-traits"] }
+effect = { path = "../effect", default-features = false, features = [
+  "num-traits",
+] }
 esp-hal = { version = "1.0.0", features = ["esp32c6", "unstable"] }
 esp-rtos = { version = "0.2.0", features = [
   "embassy",
@@ -63,3 +65,15 @@ embassy-sync = "0.7.2"
 
 [build-dependencies]
 dotenvy = "0.15.7"
+
+[profile.dev]
+opt-level = "s"
+
+[profile.release]
+codegen-units = 1
+debug = 2
+debug-assertions = false
+incremental = false
+lto = "fat"
+opt-level = "s"
+overflow-checks = false

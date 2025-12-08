@@ -1,4 +1,4 @@
-use color::format::Rgb8;
+use effect::color::Rgb8;
 use embassy_time::Duration;
 use esp_hal::{gpio::Level, rmt::PulseCode};
 

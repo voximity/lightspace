@@ -2,16 +2,17 @@ mod ws2812b;
 
 use core::convert::Infallible;
 
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
 use embassy_time::{Duration, Timer};
 use embedded_io::{ErrorType, Write};
 use esp_hal::{
     Async, Blocking, DriverMode,
     gpio::interconnect::PeripheralOutput,
-    rmt::{
-        Channel, Error, PulseCode, SingleShotTxTransaction, Tx, TxChannelConfig, TxChannelCreator,
-    },
+    rmt::{Channel, Error, PulseCode, Tx, TxChannelConfig, TxChannelCreator},
 };
 pub use ws2812b::*;
+
+pub type RmtBufMutex<T, const SIZE: usize> = Mutex<CriticalSectionRawMutex, RmtBuf<T, SIZE>>;
 
 /// An LED protocol.
 pub trait RmtLed {
@@ -142,6 +143,7 @@ where
 
 impl<'ch, T: RmtLed> Strip<'ch, Async, T> {
     /// Transmit the current buffer over RMT asynchronously.
+    #[allow(unused)]
     pub fn transmit<const SIZE: usize>(
         &mut self,
         buf: &RmtBuf<T, SIZE>,
@@ -151,6 +153,10 @@ impl<'ch, T: RmtLed> Strip<'ch, Async, T> {
 }
 
 impl<'ch, T: RmtLed> Strip<'ch, Blocking, T> {
+    /// Transmit the current buffer over RMT, blocking the current thread. Steals ownership of
+    /// the strip. Ensure you replace it!
+    #[allow(unused)]
+    #[must_use]
     pub fn transmit_blocking<'a, const SIZE: usize>(
         mut self,
         buf: &RmtBuf<T, SIZE>,

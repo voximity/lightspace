@@ -1,6 +1,6 @@
 use core::ops::Mul;
 
-use crate::{MapColor, format::RgbF32, math::f32_to_u8};
+use crate::{MapColor, color::RgbF32, math::f32_to_u8};
 
 #[cfg(feature = "num-traits")]
 use num_traits::Float;

@@ -1,0 +1,8 @@
+{
+  "rust-analyzer.linkedProjects": [
+    "effect/Cargo.toml",
+    "firmware/Cargo.toml",
+    "server/Cargo.toml"
+  ],
+  "rust-analyzer.cargo.allTargets": false
+}
