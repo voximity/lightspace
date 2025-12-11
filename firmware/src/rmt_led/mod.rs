@@ -2,7 +2,6 @@ mod ws2812b;
 
 use core::convert::Infallible;
 
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
 use embassy_time::{Duration, Timer};
 use embedded_io::{ErrorType, Write};
 use esp_hal::{
@@ -11,8 +10,6 @@ use esp_hal::{
     rmt::{Channel, Error, PulseCode, Tx, TxChannelConfig, TxChannelCreator},
 };
 pub use ws2812b::*;
-
-pub type RmtBufMutex<T, const SIZE: usize> = Mutex<CriticalSectionRawMutex, RmtBuf<T, SIZE>>;
 
 /// An LED protocol.
 pub trait RmtLed {
@@ -36,23 +33,23 @@ pub trait WriteColor<T> {
 
 /// A buffer of RMT pulse codes that can be cleanly written to in sequence.
 #[derive(Debug, Clone)]
-pub struct RmtBuf<T: RmtLed, const SIZE: usize> {
-    buf: [PulseCode; SIZE],
+pub struct RmtBuf<T: RmtLed, const N: usize> {
+    buf: [PulseCode; N],
     pos: usize,
     _phantom: core::marker::PhantomData<T>,
 }
 
-impl<T: RmtLed, const SIZE: usize> Default for RmtBuf<T, SIZE> {
+impl<T: RmtLed, const N: usize> Default for RmtBuf<T, N> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T: RmtLed, const SIZE: usize> RmtBuf<T, SIZE> {
+impl<T: RmtLed, const N: usize> RmtBuf<T, N> {
     /// Instantiate a new buffer.
     pub const fn new() -> Self {
-        let mut buf = [T::LO; SIZE];
-        buf[SIZE - 1] = PulseCode::end_marker();
+        let mut buf = [T::LO; N];
+        buf[N - 1] = PulseCode::end_marker();
         Self {
             buf,
             pos: 0,
@@ -61,7 +58,7 @@ impl<T: RmtLed, const SIZE: usize> RmtBuf<T, SIZE> {
     }
 
     /// View into the current buffer.
-    pub fn buf(&self) -> &[PulseCode; SIZE] {
+    pub fn buf(&self) -> &[PulseCode; N] {
         &self.buf
     }
 
@@ -80,11 +77,11 @@ impl<T: RmtLed, const SIZE: usize> RmtBuf<T, SIZE> {
     }
 }
 
-impl<'a, T: RmtLed, const SIZE: usize> ErrorType for RmtBuf<T, SIZE> {
+impl<'a, T: RmtLed, const N: usize> ErrorType for RmtBuf<T, N> {
     type Error = Infallible;
 }
 
-impl<T: RmtLed, const SIZE: usize> Write for RmtBuf<T, SIZE> {
+impl<T: RmtLed, const N: usize> Write for RmtBuf<T, N> {
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         let mut written = 0usize;
         for &byte in buf {
@@ -101,18 +98,17 @@ impl<T: RmtLed, const SIZE: usize> Write for RmtBuf<T, SIZE> {
     }
 }
 
-/// A `Strip` wraps an RMT buffer `RmtBuf` and an RMT channel.
-pub struct Strip<'ch, Dm, T>
+/// An `RmtStrip` wraps an RMT channel.
+pub struct RmtStrip<'ch, Dm, T>
 where
     Dm: DriverMode,
     T: RmtLed,
 {
-    // pub buf: RmtBuf<T, SIZE>,
     pub ch: Channel<'ch, Dm, Tx>,
     _phantom: core::marker::PhantomData<T>,
 }
 
-impl<'ch, Dm, T> Strip<'ch, Dm, T>
+impl<'ch, Dm, T> RmtStrip<'ch, Dm, T>
 where
     Dm: DriverMode,
     T: RmtLed,
@@ -136,12 +132,13 @@ where
     }
 
     /// Wait the latch time defined by the LED protocol.
+    #[allow(unused)]
     pub async fn latch(&self) {
         Timer::after(T::LATCH).await;
     }
 }
 
-impl<'ch, T: RmtLed> Strip<'ch, Async, T> {
+impl<'ch, T: RmtLed> RmtStrip<'ch, Async, T> {
     /// Transmit the current buffer over RMT asynchronously.
     #[allow(unused)]
     pub fn transmit<const SIZE: usize>(
@@ -152,7 +149,7 @@ impl<'ch, T: RmtLed> Strip<'ch, Async, T> {
     }
 }
 
-impl<'ch, T: RmtLed> Strip<'ch, Blocking, T> {
+impl<'ch, T: RmtLed> RmtStrip<'ch, Blocking, T> {
     /// Transmit the current buffer over RMT, blocking the current thread. Steals ownership of
     /// the strip. Ensure you replace it!
     #[allow(unused)]

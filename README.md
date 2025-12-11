@@ -12,6 +12,12 @@ cargo install just
 just firmware
 ```
 
+To run without Wi-Fi features,
+
+```
+just firmware-offline
+```
+
 ## Run server
 
 ```

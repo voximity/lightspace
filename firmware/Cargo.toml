@@ -4,6 +4,9 @@ name = "firmware"
 rust-version = "1.88"
 version = "0.1.0"
 
+[features]
+offline = []
+
 [[bin]]
 name = "firmware"
 path = "./src/main.rs"

@@ -11,13 +11,13 @@ use esp_radio::wifi::{
     sta_state,
 };
 
-use crate::STRIP0_BUF;
+use crate::{STRIP0, STRIP1};
 
 const SSID: &'static str = env!("FW_SSID");
 const PASSWORD: &'static str = env!("FW_PASSWORD");
 
 #[embassy_executor::task]
-pub async fn connection(mut controller: WifiController<'static>, stack: Stack<'static>) {
+pub async fn connection(mut controller: WifiController<'static>, _stack: Stack<'static>) {
     println!("device capabilities: {:?}", controller.capabilities());
 
     loop {
@@ -73,23 +73,42 @@ pub async fn task(mut runner: Runner<'static, WifiDevice<'static>>) {
 }
 
 #[embassy_executor::task]
+pub async fn show_ipv4(stack: Stack<'static>) {
+    loop {
+        if let Some(cfg) = stack.config_v4() {
+            esp_println::println!("ipv4 from dhcp: {}", cfg.address);
+            break;
+        }
+        Timer::after_millis(500).await;
+    }
+}
+
+#[embassy_executor::task]
 pub async fn udp_socket(stack: Stack<'static>) {
     let mut rx_meta = [PacketMetadata::EMPTY; 16];
-    let mut rx_buf = [0u8; 4096];
+    let mut rx_buf = [0u8; 8092];
     let mut tx_meta = [PacketMetadata::EMPTY; 16];
-    let mut tx_buf = [0u8; 4096];
-    let mut buf = [0u8; 4096];
+    let mut tx_buf = [0u8; 8092];
+    let mut buf = [0u8; 8092];
 
     let mut socket = UdpSocket::new(stack, &mut rx_meta, &mut rx_buf, &mut tx_meta, &mut tx_buf);
     socket.bind(1337).unwrap();
 
     loop {
-        let (n, ep) = socket.recv_from(&mut buf).await.unwrap();
-        if n == 300 * 3 {
-            let mut rmt_buf = STRIP0_BUF.lock().await;
-            rmt_buf.flush();
-            for slice in buf[0..n].chunks(3) {
-                rmt_buf.write_color(
+        let (n, _) = socket.recv_from(&mut buf).await.unwrap();
+        if n == 300 * 3 + 1 {
+            let ch = buf[0];
+            let mut strip = match ch {
+                0 => STRIP0.lock().await,
+                1 => STRIP1.lock().await,
+                _ => continue,
+            };
+
+            let strip_buf = strip.buf_mut();
+            _ = strip_buf.flush();
+
+            for slice in buf[1..n].chunks(3) {
+                strip_buf.write_color(
                     Rgb8 {
                         r: slice[0],
                         g: slice[1],
@@ -100,6 +119,5 @@ pub async fn udp_socket(stack: Stack<'static>) {
                 );
             }
         }
-        socket.send_to(&buf[..n], ep).await.unwrap();
     }
 }

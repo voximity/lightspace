@@ -53,16 +53,16 @@ impl EffectMode for ColorWheel {
     }
 }
 
-pub struct ColorPattern<const SIZE: usize> {
-    pub colors: [Rgb8; SIZE],
+pub struct ColorPattern<const N: usize> {
+    pub colors: [Rgb8; N],
     pub speed: f32,
 }
 
-impl<const SIZE: usize> EffectMode for ColorPattern<SIZE> {
+impl<const N: usize> EffectMode for ColorPattern<N> {
     fn update(&self, _: &StripInfo, buf: &mut [Rgb8], time: u64) {
-        let time_shift = (time as f32 / 1000.0 * self.speed * SIZE as f32).floor() as usize;
+        let time_shift = (time as f32 / 1000.0 * self.speed * N as f32).floor() as usize;
         for (i, px) in buf.iter_mut().enumerate() {
-            *px = self.colors[(i - time_shift).rem_euclid(SIZE)].gamma_correct();
+            *px = self.colors[(i - time_shift).rem_euclid(N)].gamma_correct();
         }
     }
 }

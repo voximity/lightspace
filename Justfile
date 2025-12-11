@@ -3,6 +3,9 @@ set windows-shell := ["C:\\Program Files\\Git\\bin\\sh.exe","-c"]
 firmware:
     cargo --config firmware/.cargo/config.toml run --release --manifest-path firmware/Cargo.toml
 
+firmware-offline:
+    cargo --config firmware/.cargo/config.toml run --release --manifest-path firmware/Cargo.toml --features offline
+
 build-firmware:
     cargo --config firmware/.cargo/config.toml build --release --manifest-path firmware/Cargo.toml
 
