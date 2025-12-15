@@ -1,12 +1,12 @@
 [package]
-name = "effect"
+name = "common"
 version = "0.1.0"
 edition = "2024"
 
 [features]
 default = ["std"]
 std = []
-num-traits = ["dep:num-traits"]
+firmware = ["dep:num-traits"]
 
 [dependencies]
 better_default = "1.0.5"

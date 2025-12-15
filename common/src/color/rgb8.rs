@@ -5,7 +5,7 @@ use crate::{
     math::f32_to_u8,
 };
 
-#[cfg(feature = "num-traits")]
+#[cfg(feature = "firmware")]
 use num_traits::Float;
 
 pub const GAMMA: [u8; 256] = [

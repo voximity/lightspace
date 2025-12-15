@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "effect"
+name = "common"
 version = "0.1.0"
 dependencies = [
  "better_default",
@@ -42,7 +42,7 @@ dependencies = [
 name = "server"
 version = "0.1.0"
 dependencies = [
- "effect",
+ "common",
 ]
 
 [[package]]

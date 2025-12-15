@@ -1,6 +1,6 @@
 use core::ops::Deref;
 
-use effect::mode::StripInfo;
+use common::effect::StripInfo;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
 
 use crate::rmt_led::{RmtBuf, RmtLed};

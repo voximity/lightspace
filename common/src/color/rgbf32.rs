@@ -5,7 +5,7 @@ use crate::{
     math::lerp,
 };
 
-#[cfg(feature = "num-traits")]
+#[cfg(feature = "firmware")]
 use num_traits::Float;
 
 /// 32-bit floating point sRGB.

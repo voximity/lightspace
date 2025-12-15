@@ -12,9 +12,9 @@ mod rmt_led;
 mod strip;
 
 use alloc::boxed::Box;
-use effect::{
+use common::{
     color::Rgb8,
-    mode::{ColorPattern, ColorWheel, StripInfo},
+    effect::{ColorPattern, ColorWheel, StripInfo},
 };
 use embassy_executor::Spawner;
 use embassy_net::StackResources;
@@ -69,7 +69,11 @@ async fn main(spawner: Spawner) -> ! {
     let timg0 = TimerGroup::new(peripherals.TIMG0);
     let sw_interrupt =
         esp_hal::interrupt::software::SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
-    esp_rtos::start(timg0.timer0, sw_interrupt.software_interrupt0);
+    esp_rtos::start(
+        timg0.timer0,
+        #[cfg(feature = "esp32c6")]
+        sw_interrupt.software_interrupt0,
+    );
 
     // init radio stuff
     let radio_init = &*RADIO_CTRL.init_with(|| esp_radio::init().unwrap());
@@ -138,8 +142,8 @@ async fn main(spawner: Spawner) -> ! {
         }
 
         let t = embassy_time::Instant::now();
-        strip0 = strip0.transmit_blocking(&s0b).unwrap();
-        strip1 = strip1.transmit_blocking(&s1b).unwrap();
+        strip0 = strip0.transmit_blocking(s0b).unwrap();
+        strip1 = strip1.transmit_blocking(s1b).unwrap();
         drop(s0);
         drop(s1);
 

@@ -1,4 +1,4 @@
-#[cfg(feature = "num-traits")]
+#[cfg(feature = "firmware")]
 use num_traits::Float;
 
 /// Linear interpolation between two floats.

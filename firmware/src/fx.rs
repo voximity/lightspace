@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
-use effect::{
+use common::{
     color::Rgb8,
-    mode::{EffectMode, StripInfo},
+    effect::{EffectMode, StripInfo},
 };
 
 /// `Effects` stores configured `EffectMode`s and allows shifting between them.

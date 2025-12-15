@@ -1,6 +1,6 @@
 {
   "rust-analyzer.linkedProjects": [
-    "effect/Cargo.toml",
+    "common/Cargo.toml",
     "firmware/Cargo.toml",
     "server/Cargo.toml"
   ],

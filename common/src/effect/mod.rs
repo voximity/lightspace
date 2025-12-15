@@ -1,6 +1,6 @@
 use crate::color::{HsvF32, Rgb8, RgbF32};
 
-#[cfg(feature = "num-traits")]
+#[cfg(feature = "firmware")]
 use num_traits::{Euclid, Float};
 
 pub struct StripInfo {
@@ -14,9 +14,9 @@ pub trait EffectMode {
 }
 
 fn rem_euclid(a: f32, b: f32) -> f32 {
-    #[cfg(feature = "num-traits")]
+    #[cfg(feature = "firmware")]
     return a.rem_euclid(&b);
-    #[cfg(not(feature = "num-traits"))]
+    #[cfg(not(feature = "firmware"))]
     a.rem_euclid(b)
 }
 
