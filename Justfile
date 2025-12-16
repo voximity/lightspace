@@ -1,10 +1,20 @@
-set windows-shell := ["C:\\Program Files\\Git\\bin\\sh.exe","-c"]
+set windows-shell := ["C:\\Program Files\\Git\\bin\\sh.exe", "-c"]
 
 _fw ov mcu:
-    cargo {{ov}} --config firmware/.cargo/config.toml run --release --manifest-path firmware/Cargo.toml --features {{mcu}}
+    cargo {{ ov }} \
+        --config firmware/.cargo/config.toml \
+        run --release \
+        --manifest-path firmware/Cargo.toml \
+        --no-default-features \
+        --features {{ mcu }}
 
 _fw-offline ov mcu:
-    cargo {{ov}} --config firmware/.cargo/config.toml run --release --manifest-path firmware/Cargo.toml --features {{mcu}},offline
+    cargo {{ ov }} \
+        --config firmware/.cargo/config.toml \
+        run --release \
+        --manifest-path firmware/Cargo.toml \
+        --no-default-features \
+        --features {{ mcu }},offline
 
 esp32c6:
     @just _fw +stable esp32c6

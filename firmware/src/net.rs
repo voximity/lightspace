@@ -1,14 +1,15 @@
-use common::color::Rgb8;
+use common::{color::Rgb8, net::UdpMessage};
 use embassy_net::{
     Runner, Stack,
+    tcp::TcpSocket,
     udp::{PacketMetadata, UdpSocket},
 };
 use embassy_time::{Duration, Timer};
 use embedded_io::Write;
 use esp_println::println;
 use esp_radio::wifi::{
-    ClientConfig, ModeConfig, ScanConfig, WifiController, WifiDevice, WifiEvent, WifiStaState,
-    sta_state,
+    ModeConfig, WifiController, WifiDevice, WifiEvent, WifiStationState, scan::ScanConfig,
+    sta::StationConfig, station_state,
 };
 
 use crate::{STRIP0, STRIP1};
@@ -21,17 +22,19 @@ pub async fn connection(mut controller: WifiController<'static>, _stack: Stack<'
     println!("device capabilities: {:?}", controller.capabilities());
 
     loop {
-        match sta_state() {
-            WifiStaState::Connected => {
-                controller.wait_for_event(WifiEvent::StaDisconnected).await;
+        match station_state() {
+            WifiStationState::Connected => {
+                controller
+                    .wait_for_event(WifiEvent::StationDisconnected)
+                    .await;
                 Timer::after(Duration::from_millis(5000)).await
             }
             _ => (),
         }
 
         if !controller.is_started().unwrap_or(false) {
-            let sta_config = ModeConfig::Client(
-                ClientConfig::default()
+            let sta_config = ModeConfig::Station(
+                StationConfig::default()
                     .with_ssid(SSID.into())
                     .with_password(PASSWORD.into()),
             );
@@ -83,6 +86,11 @@ pub async fn show_ipv4(stack: Stack<'static>) {
     }
 }
 
+// TODO: unify somewhere else
+fn post_process(color: Rgb8) -> Rgb8 {
+    color.gamma_correct().brightness(0.4)
+}
+
 #[embassy_executor::task]
 pub async fn udp_socket(stack: Stack<'static>) {
     let mut rx_meta = [PacketMetadata::EMPTY; 16];
@@ -95,29 +103,76 @@ pub async fn udp_socket(stack: Stack<'static>) {
     socket.bind(1337).unwrap();
 
     loop {
-        let (n, _) = socket.recv_from(&mut buf).await.unwrap();
-        if n == 300 * 3 + 1 {
-            let ch = buf[0];
-            let mut strip = match ch {
-                0 => STRIP0.lock().await,
-                1 => STRIP1.lock().await,
-                _ => continue,
-            };
+        let (mut n, _) = socket.recv_from(&mut buf).await.unwrap();
+        if n < 2 {
+            continue;
+        }
 
-            let strip_buf = strip.buf_mut();
-            _ = strip_buf.flush();
+        let [msg_type, target, rest @ ..] = &buf;
+        n -= 2;
 
-            for slice in buf[1..n].chunks(3) {
-                strip_buf.write_color(
-                    Rgb8 {
-                        r: slice[0],
-                        g: slice[1],
-                        b: slice[2],
-                    }
-                    .gamma_correct()
-                    .brightness(0.2),
-                );
+        // TODO: make more robust
+        let mut strip = match *target {
+            0 => STRIP0.lock().await,
+            1 => STRIP1.lock().await,
+            _ => continue,
+        };
+
+        match UdpMessage::try_from(*msg_type) {
+            Ok(UdpMessage::SetBufferToMany) => {
+                let leds = strip.info().leds;
+                if n < leds * 3 {
+                    // TODO: warn
+                    continue;
+                }
+
+                let buf = strip.buf_mut();
+                _ = buf.flush();
+                for rgb in rest[0..(leds * 3)].chunks(3) {
+                    buf.write_color(post_process(Rgb8::new(rgb[0], rgb[1], rgb[2])));
+                }
             }
+
+            Ok(UdpMessage::SetBufferToSingle) => {
+                if n < 3 {
+                    // TODO: warn
+                    continue;
+                }
+
+                let [r, g, b, ..] = rest;
+
+                let leds = strip.info().leds;
+                let buf = strip.buf_mut();
+                _ = buf.flush();
+                for _ in 0..leds {
+                    buf.write_color(post_process(Rgb8::new(*r, *g, *b)));
+                }
+            }
+
+            Ok(UdpMessage::SetSinglePixel) => todo!(),
+
+            Err(_) => continue,
+        }
+    }
+}
+
+#[embassy_executor::task]
+pub async fn tcp_socket(stack: Stack<'static>) {
+    let mut rx = [0u8; 4096];
+    let mut tx = [0u8; 4096];
+    let mut socket = TcpSocket::new(stack, &mut rx, &mut tx);
+
+    let /* mut */ _buf = [0u8; 4096];
+    loop {
+        use embassy_net::tcp::AcceptError;
+        match socket.accept(1338).await {
+            Ok(_) => (),
+            Err(AcceptError::ConnectionReset) => {
+                println!("warn: reset on TCP connection");
+                Timer::after_secs(5).await;
+                continue;
+            }
+            Err(_) => panic!("error: TCP connection fail"),
         }
     }
 }

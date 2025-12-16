@@ -118,12 +118,15 @@ where
         channel: impl TxChannelCreator<'ch, Dm>,
         pin: impl PeripheralOutput<'ch>,
     ) -> Result<Self, Error> {
-        let ch = channel.configure_tx(
-            pin,
-            TxChannelConfig::default()
-                .with_idle_output(true)
-                .with_clk_divider(1),
-        )?;
+        let ch = channel
+            .configure_tx(
+                // pin,
+                &TxChannelConfig::default()
+                    .with_idle_output(true)
+                    .with_clk_divider(1),
+            )
+            .unwrap()
+            .with_pin(pin);
 
         Ok(Self {
             ch,
@@ -158,7 +161,7 @@ impl<'ch, T: RmtLed> RmtStrip<'ch, Blocking, T> {
         mut self,
         buf: &RmtBuf<T, SIZE>,
     ) -> Result<Self, Error> {
-        let tx = self.ch.transmit(buf.buf())?;
+        let tx = self.ch.transmit(buf.buf()).unwrap();
         self.ch = tx.wait().map_err(|t| t.0)?; // TODO: is this safe?
         Ok(self)
     }

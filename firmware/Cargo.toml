@@ -5,12 +5,13 @@ rust-version = "1.88"
 version = "0.1.0"
 
 [features]
-default = ["esp32c6"]
+default = ["esp32s3"]
 offline = []
 esp32c6 = [
     "esp-hal/esp32c6",
     "esp-rtos/esp32c6",
     "esp-bootloader-esp-idf/esp32c6",
+    "esp-backtrace/esp32c6",
     "esp-radio/esp32c6",
     "esp-println/esp32c6",
 ]
@@ -18,6 +19,7 @@ esp32s3 = [
     "esp-hal/esp32s3",
     "esp-rtos/esp32s3",
     "esp-bootloader-esp-idf/esp32s3",
+    "esp-backtrace/esp32s3",
     "esp-radio/esp32s3",
     "esp-println/esp32s3",
 ]
@@ -33,13 +35,17 @@ doctest = false
 common = { path = "../common", default-features = false, features = [
   "firmware",
 ] }
-esp-hal = { version = "1.0.0", features = ["unstable"] }
-esp-rtos = { version = "0.2.0", features = [
-  "embassy",
-  "esp-alloc",
-  "esp-radio",
+# esp-hal = { version = "1.0.0", features = ["unstable"] }
+# esp-rtos = { version = "0.2.0", features = [
+#   "embassy",
+#   "esp-alloc",
+#   "esp-radio",
+# ] }
+esp-backtrace = { version = "0.18", features = [
+  "panic-handler",
+  "println",
 ] }
-esp-bootloader-esp-idf = "0.4.0"
+# esp-bootloader-esp-idf = "0.4.0"
 embassy-net = { version = "0.7.1", features = [
   "dhcpv4",
   "medium-ethernet",
@@ -48,16 +54,16 @@ embassy-net = { version = "0.7.1", features = [
 ] }
 embedded-io = "0.7.1"
 embedded-io-async = "0.7.0"
-esp-alloc = "0.9.0"
+# esp-alloc = "0.9.0"
 # for more networking protocol support see https://crates.io/crates/edge-net
 embassy-executor = { version = "0.9.1", features = [] }
 embassy-time = "0.5.0"
-esp-radio = { version = "0.17.0", features = [
-  "esp-alloc",
-  "smoltcp",
-  "unstable",
-  "wifi",
-] }
+# esp-radio = { version = "0.17.0", features = [
+#   "esp-alloc",
+#   "smoltcp",
+#   "unstable",
+#   "wifi",
+# ] }
 smoltcp = { version = "0.12.0", default-features = false, features = [
   "medium-ethernet",
   "multicast",
@@ -78,6 +84,34 @@ num-traits = { version = "0.2.19", features = [
 ], default-features = false }
 embassy-futures = "0.1.2"
 embassy-sync = "0.7.2"
+
+[dependencies.esp-hal]
+git = "https://github.com/esp-rs/esp-hal.git"
+rev = "5740aaf"
+package = "esp-hal"
+features = ["unstable"]
+
+[dependencies.esp-rtos]
+git = "https://github.com/esp-rs/esp-hal.git"
+rev = "5740aaf"
+package = "esp-rtos"
+features = ["embassy", "esp-alloc", "esp-radio"]
+
+[dependencies.esp-bootloader-esp-idf]
+git = "https://github.com/esp-rs/esp-hal.git"
+rev = "5740aaf"
+package = "esp-bootloader-esp-idf"
+
+[dependencies.esp-radio]
+git = "https://github.com/esp-rs/esp-hal.git"
+rev = "5740aaf"
+package = "esp-radio"
+features = ["esp-alloc", "smoltcp", "unstable", "wifi"]
+
+[dependencies.esp-alloc]
+git = "https://github.com/esp-rs/esp-hal.git"
+rev = "5740aaf"
+package = "esp-alloc"
 
 [build-dependencies]
 dotenvy = "0.15.7"

@@ -1,6 +1,6 @@
 [toolchain]
-components = ["rust-src"]
-targets = ["riscv32imac-unknown-none-elf"]
+# components = ["rust-src"]
+# targets = ["riscv32imac-unknown-none-elf"]
 
 # targets = ["xtensa-esp32s3-none-elf"]
-# channel = "esp"
+channel = "esp"

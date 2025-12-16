@@ -58,7 +58,14 @@ fn linker_be_nice() {
     }
 
     println!(
-        "cargo:rustc-link-arg=--error-handling-script={}",
+        "cargo:rustc-link-arg={}--error-handling-script={}",
+        match std::env::var("CARGO_CFG_TARGET_ARCH")
+            .unwrap_or_default()
+            .as_str()
+        {
+            "xtensa" => "-Wl,",
+            _ => "",
+        },
         std::env::current_exe().unwrap().display()
     );
 }
