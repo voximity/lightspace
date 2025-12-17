@@ -3,53 +3,49 @@ use core::ops::Deref;
 use common::effect::StripInfo;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
 
-use crate::rmt_led::{RmtBuf, RmtLed};
+use crate::{
+    NUM_STRIPS,
+    rmt_led::{RmtBuf, RmtLed},
+};
 
-/// A `StripMutex` provides concurrent access to a strip's RMT buffer and its strip info.
-pub struct StripMutex<T: RmtLed, const N: usize>(
-    Mutex<CriticalSectionRawMutex, StripMutexInner<T, N>>,
-);
+pub const MAX_STRIP_LEN: usize = 500;
+pub const MAX_STRIP_BUF_LEN: usize = MAX_STRIP_LEN * 24 + 1;
 
-impl<T: RmtLed, const N: usize> StripMutex<T, N> {
-    pub const fn new(info: StripInfo) -> Self {
-        Self(Mutex::new(StripMutexInner::new(info)))
-    }
-}
-
-impl<T: RmtLed, const N: usize> Deref for StripMutex<T, N> {
-    type Target = Mutex<CriticalSectionRawMutex, StripMutexInner<T, N>>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-pub struct StripMutexInner<T: RmtLed, const N: usize> {
-    buf: RmtBuf<T, N>,
-    info: StripInfo,
+pub struct StripBuf<T: RmtLed, const N: usize> {
+    pub rmt_buf: RmtBuf<T, N>,
+    pub info: StripInfo,
 }
 
 #[allow(unused)]
-impl<T: RmtLed, const N: usize> StripMutexInner<T, N> {
+impl<T: RmtLed, const N: usize> StripBuf<T, N> {
     pub const fn new(info: StripInfo) -> Self {
         Self {
-            buf: RmtBuf::new(),
+            rmt_buf: RmtBuf::new(info.leds),
             info,
         }
     }
 
-    pub fn buf(&self) -> &RmtBuf<T, N> {
-        &self.buf
+    pub const fn empty() -> Self {
+        Self {
+            rmt_buf: RmtBuf::empty(),
+            info: StripInfo::empty(),
+        }
     }
+}
 
-    pub fn buf_mut(&mut self) -> &mut RmtBuf<T, N> {
-        &mut self.buf
+pub struct StripBufs<T: RmtLed, const BUF_LEN: usize>(
+    pub Mutex<CriticalSectionRawMutex, [StripBuf<T, BUF_LEN>; NUM_STRIPS]>,
+);
+
+impl<T: RmtLed, const BUF_LEN: usize> StripBufs<T, BUF_LEN> {
+    pub const fn new(bufs: [StripBuf<T, BUF_LEN>; NUM_STRIPS]) -> Self {
+        Self(Mutex::new(bufs))
     }
+}
 
-    pub fn info(&self) -> &StripInfo {
-        &self.info
-    }
-
-    pub fn info_mut(&mut self) -> &mut StripInfo {
-        &mut self.info
+impl<T: RmtLed, const BUF_LEN: usize> Deref for StripBufs<T, BUF_LEN> {
+    type Target = Mutex<CriticalSectionRawMutex, [StripBuf<T, BUF_LEN>; NUM_STRIPS]>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }

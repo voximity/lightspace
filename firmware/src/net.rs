@@ -12,7 +12,7 @@ use esp_radio::wifi::{
     sta::StationConfig, station_state,
 };
 
-use crate::{STRIP0, STRIP1};
+use crate::{NUM_STRIPS, STRIP_BUFS};
 
 const SSID: &'static str = env!("FW_SSID");
 const PASSWORD: &'static str = env!("FW_PASSWORD");
@@ -102,56 +102,63 @@ pub async fn udp_socket(stack: Stack<'static>) {
     let mut socket = UdpSocket::new(stack, &mut rx_meta, &mut rx_buf, &mut tx_meta, &mut tx_buf);
     socket.bind(1337).unwrap();
 
-    loop {
+    'recv: loop {
         let (mut n, _) = socket.recv_from(&mut buf).await.unwrap();
-        if n < 2 {
-            continue;
-        }
+        let mut cursor = buf.as_slice();
 
-        let [msg_type, target, rest @ ..] = &buf;
-        n -= 2;
+        // TODO: may want to eventually confirm that this packet is from a trusted endpoint
 
-        // TODO: make more robust
-        let mut strip = match *target {
-            0 => STRIP0.lock().await,
-            1 => STRIP1.lock().await,
-            _ => continue,
-        };
+        // repeatedly parse as many messages were fit in this packet
+        while n >= 2 {
+            let mut msg_size = 0usize;
+            let (msg_type, target, rest) = (cursor[0], cursor[1], &cursor[2..]);
+            msg_size += 2;
 
-        match UdpMessage::try_from(*msg_type) {
-            Ok(UdpMessage::SetBufferToMany) => {
-                let leds = strip.info().leds;
-                if n < leds * 3 {
-                    // TODO: warn
-                    continue;
-                }
-
-                let buf = strip.buf_mut();
-                _ = buf.flush();
-                for rgb in rest[0..(leds * 3)].chunks(3) {
-                    buf.write_color(post_process(Rgb8::new(rgb[0], rgb[1], rgb[2])));
-                }
+            if !(0..NUM_STRIPS).contains(&(target as usize)) {
+                continue 'recv;
             }
 
-            Ok(UdpMessage::SetBufferToSingle) => {
-                if n < 3 {
-                    // TODO: warn
-                    continue;
+            let mut strips = STRIP_BUFS.lock().await;
+            let strip = &mut strips[target as usize];
+
+            match UdpMessage::try_from(msg_type) {
+                Ok(UdpMessage::SetBufferToMany) => {
+                    let leds = strip.info.leds;
+                    msg_size += leds * 3;
+                    if n < msg_size {
+                        continue 'recv;
+                    }
+
+                    _ = strip.rmt_buf.flush();
+                    for rgb in rest[0..(leds * 3)].chunks(3) {
+                        strip
+                            .rmt_buf
+                            .write_color(post_process(Rgb8::new(rgb[0], rgb[1], rgb[2])));
+                    }
                 }
 
-                let [r, g, b, ..] = rest;
+                Ok(UdpMessage::SetBufferToSingle) => {
+                    msg_size += 3;
+                    if n < msg_size {
+                        continue 'recv;
+                    }
 
-                let leds = strip.info().leds;
-                let buf = strip.buf_mut();
-                _ = buf.flush();
-                for _ in 0..leds {
-                    buf.write_color(post_process(Rgb8::new(*r, *g, *b)));
+                    let (r, g, b) = (cursor[0], cursor[1], cursor[2]);
+                    let leds = strip.info.leds;
+                    _ = strip.rmt_buf.flush();
+                    for _ in 0..leds {
+                        strip.rmt_buf.write_color(post_process(Rgb8 { r, g, b }));
+                    }
                 }
+
+                Ok(UdpMessage::SetSinglePixel) => todo!(),
+
+                Err(_) => continue 'recv,
             }
 
-            Ok(UdpMessage::SetSinglePixel) => todo!(),
-
-            Err(_) => continue,
+            // shift cursor forward by consumed msg size
+            n -= msg_size;
+            cursor = &cursor[msg_size..];
         }
     }
 }

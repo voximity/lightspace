@@ -11,6 +11,7 @@ impl RmtLed for Ws2812b {
     const LO: PulseCode = PulseCode::new(Level::High, 28, Level::Low, 64);
     const HI: PulseCode = PulseCode::new(Level::High, 56, Level::Low, 48);
     const LATCH: Duration = Duration::from_micros(100);
+    const CODES_PER_LED: usize = 24;
 
     fn write_byte(buf: &mut [PulseCode], mut byte: u8) -> usize {
         for i in 0..8 {

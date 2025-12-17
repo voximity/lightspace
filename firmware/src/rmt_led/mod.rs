@@ -19,6 +19,8 @@ pub trait RmtLed {
     const HI: PulseCode;
     /// The time required for the protocol to "latch" on the new value.
     const LATCH: Duration;
+    /// Number of `PulseCode`s per LED.
+    const CODES_PER_LED: usize;
 
     /// Write a byte to a buffer of pulse codes, at the beginning.
     /// Returns the number of pulse codes written.
@@ -35,35 +37,42 @@ pub trait WriteColor<T> {
 #[derive(Debug, Clone)]
 pub struct RmtBuf<T: RmtLed, const N: usize> {
     buf: [PulseCode; N],
+    len: usize,
     pos: usize,
     _phantom: core::marker::PhantomData<T>,
 }
 
-impl<T: RmtLed, const N: usize> Default for RmtBuf<T, N> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl<T: RmtLed, const N: usize> RmtBuf<T, N> {
     /// Instantiate a new buffer.
-    pub const fn new() -> Self {
+    pub const fn new(num_px: usize) -> Self {
+        let len = num_px * T::CODES_PER_LED + 1;
+        assert!(len < N);
+
         let mut buf = [T::LO; N];
-        buf[N - 1] = PulseCode::end_marker();
+        buf[len - 1] = PulseCode::end_marker();
         Self {
             buf,
+            len,
             pos: 0,
             _phantom: core::marker::PhantomData,
         }
     }
 
+    pub const fn empty() -> Self {
+        Self::new(0)
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
     /// View into the current buffer.
-    pub fn buf(&self) -> &[PulseCode; N] {
-        &self.buf
+    pub fn buf(&self) -> &[PulseCode] {
+        &self.buf[..self.len]
     }
 
     fn cur_buf_mut(&mut self) -> &mut [PulseCode] {
-        self.buf[self.pos..].as_mut()
+        self.buf[self.pos..self.len].as_mut()
     }
 
     /// Write a color into this buffer, if the LED protocol supports it.
@@ -146,23 +155,21 @@ impl<'ch, T: RmtLed> RmtStrip<'ch, Async, T> {
     #[allow(unused)]
     pub fn transmit<const SIZE: usize>(
         &mut self,
-        buf: &RmtBuf<T, SIZE>,
+        rmt_buf: &mut RmtBuf<T, SIZE>,
     ) -> impl Future<Output = Result<(), Error>> {
-        self.ch.transmit(buf.buf())
+        self.ch.transmit(rmt_buf.buf())
     }
 }
 
 impl<'ch, T: RmtLed> RmtStrip<'ch, Blocking, T> {
-    /// Transmit the current buffer over RMT, blocking the current thread. Steals ownership of
-    /// the strip. Ensure you replace it!
+    /// Transmit the current buffer over RMT, blocking the current thread.
     #[allow(unused)]
-    #[must_use]
-    pub fn transmit_blocking<'a, const SIZE: usize>(
-        mut self,
-        buf: &RmtBuf<T, SIZE>,
-    ) -> Result<Self, Error> {
-        let tx = self.ch.transmit(buf.buf()).unwrap();
-        self.ch = tx.wait().map_err(|t| t.0)?; // TODO: is this safe?
-        Ok(self)
+    pub fn transmit_blocking<'a, const SIZE: usize>(&mut self, rmt_buf: &mut RmtBuf<T, SIZE>) {
+        self.ch
+            .reborrow()
+            .transmit(rmt_buf.buf())
+            .unwrap()
+            .wait()
+            .unwrap();
     }
 }

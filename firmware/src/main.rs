@@ -18,11 +18,11 @@ use common::{
 };
 use embassy_executor::Spawner;
 use embassy_net::StackResources;
-use embassy_time::Timer;
+use embassy_time::{Instant, Timer};
 use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
 use esp_hal::rmt::Rmt;
-use esp_hal::time::{Instant, Rate};
+use esp_hal::time::Rate;
 use esp_hal::timer::timg::TimerGroup;
 use esp_hal::{Blocking, rng::Rng};
 use esp_rtos::embassy::Executor;
@@ -31,24 +31,32 @@ use static_cell::StaticCell;
 use crate::{
     fx::Effects,
     rmt_led::{RmtStrip, Ws2812b},
-    strip::StripMutex,
+    strip::{MAX_STRIP_BUF_LEN, StripBuf, StripBufs},
 };
 
 extern crate alloc;
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
-static STACK_RESOURCES: StaticCell<StackResources<4>> = StaticCell::new();
-const STRIP_BUF_LEN: usize = 24 * 300 + 1;
+static STACK_RESOURCES: StaticCell<StackResources<3>> = StaticCell::new();
 
-pub static STRIP0: StripMutex<Ws2812b, STRIP_BUF_LEN> = StripMutex::new(StripInfo {
-    leds: 300,
-    rev: true,
-});
-pub static STRIP1: StripMutex<Ws2812b, STRIP_BUF_LEN> = StripMutex::new(StripInfo {
-    leds: 300,
-    rev: false,
-});
+#[cfg(feature = "esp32s3")]
+pub const NUM_STRIPS: usize = 4;
+#[cfg(feature = "esp32c6")]
+pub const NUM_STRIPS: usize = 2;
+
+pub static STRIP_BUFS: StripBufs<Ws2812b, MAX_STRIP_BUF_LEN> = StripBufs::new([
+    StripBuf::new(StripInfo {
+        leds: 300,
+        rev: true,
+    }),
+    StripBuf::new(StripInfo {
+        leds: 300,
+        rev: false,
+    }),
+    StripBuf::empty(),
+    StripBuf::empty(),
+]);
 
 #[esp_rtos::main]
 async fn main(spawner: Spawner) -> ! {
@@ -92,11 +100,14 @@ async fn main(spawner: Spawner) -> ! {
 
     // rmt init
     let rmt = Rmt::new(peripherals.RMT, Rate::from_mhz(80)).expect("failed to initialize RMT");
-
-    let strip0 = RmtStrip::<_, Ws2812b>::new_on_channel(rmt.channel0, peripherals.GPIO4)
-        .expect("failed to init strip");
-    let strip1 = RmtStrip::<_, Ws2812b>::new_on_channel(rmt.channel1, peripherals.GPIO5)
-        .expect("failed to init strip");
+    let strips = [
+        RmtStrip::new_on_channel(rmt.channel0, peripherals.GPIO4).unwrap(),
+        RmtStrip::new_on_channel(rmt.channel1, peripherals.GPIO5).unwrap(),
+        #[cfg(feature = "esp32s3")]
+        RmtStrip::new_on_channel(rmt.channel2, peripherals.GPIO6).unwrap(),
+        #[cfg(feature = "esp32s3")]
+        RmtStrip::new_on_channel(rmt.channel3, peripherals.GPIO7).unwrap(),
+    ];
 
     // on the ESP32-S3, we can pin LED data transmission to the second core
     #[cfg(feature = "esp32s3")]
@@ -108,7 +119,7 @@ async fn main(spawner: Spawner) -> ! {
             static EXECUTOR: StaticCell<Executor> = StaticCell::new();
             let executor = EXECUTOR.init(Executor::new());
             executor.run(|spawner| {
-                spawner.spawn(data_tx(strip0, strip1)).unwrap();
+                spawner.spawn(data_tx(strips)).unwrap();
             });
         },
     );
@@ -121,10 +132,7 @@ async fn main(spawner: Spawner) -> ! {
 }
 
 #[embassy_executor::task]
-async fn data_tx(
-    mut strip0: RmtStrip<'static, Blocking, Ws2812b>,
-    mut strip1: RmtStrip<'static, Blocking, Ws2812b>,
-) {
+async fn data_tx(mut strips: [RmtStrip<'static, Blocking, Ws2812b>; NUM_STRIPS]) {
     let _fx = Effects::new([
         Box::new(ColorWheel {
             deg_per_sec: 180.0,
@@ -143,29 +151,35 @@ async fn data_tx(
     let _effect_buf = [Rgb8::zero(); 300];
 
     loop {
-        let _now = Instant::now().duration_since_epoch().as_millis();
+        let _now = esp_hal::time::Instant::now()
+            .duration_since_epoch()
+            .as_millis();
+
         // fx.update(&strip_info, &mut effect_buf, now);
 
-        let s0 = STRIP0.lock().await;
-        let s1 = STRIP1.lock().await;
+        // lock our strip buffers
+        let mut bufs = STRIP_BUFS.lock().await;
 
-        // let s0b = s0.buf_mut();
-        // let s1b = s1.buf_mut();
+        // transmit the first strip, keeping track of its finish time
+        let mut t = None;
+        for i in 0..NUM_STRIPS {
+            if bufs[i].info.leds == 0 {
+                continue;
+            }
 
-        // _ = s0b.flush();
-        // _ = s1b.flush();
-        // for px in effect_buf {
-        //     s0b.write_color(px.brightness(0.2));
-        //     s1b.write_color(px.brightness(0.2));
-        // }
+            strips[i].transmit_blocking(&mut bufs[i].rmt_buf);
 
-        strip0 = strip0.transmit_blocking(s0.buf()).unwrap();
-        let t = embassy_time::Instant::now();
-        strip1 = strip1.transmit_blocking(s1.buf()).unwrap();
+            if t.is_none() {
+                t = Some(Instant::now());
+            }
+        }
 
-        drop(s0);
-        drop(s1);
+        // drop the lock
+        drop(bufs);
 
-        Timer::at(t + <Ws2812b as crate::rmt_led::RmtLed>::LATCH).await;
+        match t {
+            Some(t) => Timer::at(t + <Ws2812b as crate::rmt_led::RmtLed>::LATCH).await,
+            None => Timer::after_secs(1).await,
+        }
     }
 }

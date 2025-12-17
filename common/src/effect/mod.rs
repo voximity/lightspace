@@ -3,10 +3,20 @@ use crate::color::{HsvF32, Rgb8, RgbF32};
 #[cfg(feature = "firmware")]
 use num_traits::{Euclid, Float};
 
+#[derive(Debug, Default, Clone, Copy)]
 pub struct StripInfo {
     pub leds: usize,
     pub rev: bool,
     // TODO: spatial data
+}
+
+impl StripInfo {
+    pub const fn empty() -> Self {
+        Self {
+            leds: 0,
+            rev: false,
+        }
+    }
 }
 
 pub trait EffectMode {
