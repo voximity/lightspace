@@ -1,51 +1,45 @@
-use core::ops::Deref;
+use common::{color::RgbaF32, effect::StripInfo, net::StripMode};
 
-use common::effect::StripInfo;
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
+use crate::NUM_STRIPS;
 
-use crate::{
-    NUM_STRIPS,
-    rmt_led::{RmtBuf, RmtLed},
-};
-
-pub const MAX_STRIP_LEN: usize = 500;
+pub const MAX_STRIP_LEN: usize = 300;
 pub const MAX_STRIP_BUF_LEN: usize = MAX_STRIP_LEN * 24 + 1;
 
-pub struct StripBuf<T: RmtLed, const N: usize> {
-    pub rmt_buf: RmtBuf<T, N>,
+pub struct StripState<const N: usize> {
+    pub colors: [RgbaF32; N],
     pub info: StripInfo,
+    pub mode: StripMode,
 }
 
 #[allow(unused)]
-impl<T: RmtLed, const N: usize> StripBuf<T, N> {
+impl<const N: usize> StripState<N> {
     pub const fn new(info: StripInfo) -> Self {
         Self {
-            rmt_buf: RmtBuf::new(info.leds),
+            colors: [RgbaF32::zero(); N],
             info,
+            mode: StripMode::Hybrid,
         }
     }
 
     pub const fn empty() -> Self {
         Self {
-            rmt_buf: RmtBuf::empty(),
+            colors: [RgbaF32::zero(); N],
             info: StripInfo::empty(),
+            mode: StripMode::Off,
         }
     }
-}
 
-pub struct StripBufs<T: RmtLed, const BUF_LEN: usize>(
-    pub Mutex<CriticalSectionRawMutex, [StripBuf<T, BUF_LEN>; NUM_STRIPS]>,
-);
-
-impl<T: RmtLed, const BUF_LEN: usize> StripBufs<T, BUF_LEN> {
-    pub const fn new(bufs: [StripBuf<T, BUF_LEN>; NUM_STRIPS]) -> Self {
-        Self(Mutex::new(bufs))
+    pub fn is_empty(&self) -> bool {
+        self.info.leds == 0
     }
 }
 
-impl<T: RmtLed, const BUF_LEN: usize> Deref for StripBufs<T, BUF_LEN> {
-    type Target = Mutex<CriticalSectionRawMutex, [StripBuf<T, BUF_LEN>; NUM_STRIPS]>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
+pub struct State<const BUF_LEN: usize> {
+    pub strips: [StripState<BUF_LEN>; NUM_STRIPS],
+}
+
+impl<const BUF_LEN: usize> State<BUF_LEN> {
+    pub const fn new(strips: [StripState<BUF_LEN>; NUM_STRIPS]) -> Self {
+        Self { strips }
     }
 }

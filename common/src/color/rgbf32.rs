@@ -1,7 +1,7 @@
 use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
 use crate::{
-    color::{HsvF32, MapColor, ZipColor},
+    color::{HsvF32, MapColor, Rgb8, RgbaF32, ZipColor},
     math::lerp,
 };
 
@@ -19,6 +19,14 @@ pub struct RgbF32 {
 impl RgbF32 {
     pub const fn new(r: f32, g: f32, b: f32) -> Self {
         Self { r, g, b }
+    }
+
+    pub const fn zero() -> Self {
+        Self {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+        }
     }
 
     pub const fn gray(x: f32) -> Self {
@@ -155,6 +163,31 @@ impl From<HsvF32> for RgbF32 {
             r: r1 + m,
             g: g1 + m,
             b: b1 + m,
+        }
+    }
+}
+
+impl From<RgbaF32> for RgbF32 {
+    fn from(value: RgbaF32) -> Self {
+        if value.a > 0.0 {
+            let inv_a = 1.0 / value.a;
+            Self {
+                r: value.r * inv_a,
+                g: value.g * inv_a,
+                b: value.b * inv_a,
+            }
+        } else {
+            Self::zero()
+        }
+    }
+}
+
+impl From<Rgb8> for RgbF32 {
+    fn from(value: Rgb8) -> Self {
+        Self {
+            r: value.r as f32 / 255.0,
+            g: value.g as f32 / 255.0,
+            b: value.b as f32 / 255.0,
         }
     }
 }

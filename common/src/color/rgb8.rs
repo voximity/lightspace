@@ -1,7 +1,7 @@
 use core::ops::Mul;
 
 use crate::{
-    color::{MapColor, RgbF32},
+    color::{MapColor, RgbF32, RgbaF32},
     math::f32_to_u8,
 };
 
@@ -82,5 +82,11 @@ impl Mul<f32> for Rgb8 {
 
     fn mul(self, rhs: f32) -> Self::Output {
         self.map(|c| (c as f32 * rhs).clamp(0f32, 255f32).round() as u8)
+    }
+}
+
+impl From<RgbaF32> for Rgb8 {
+    fn from(value: RgbaF32) -> Self {
+        Self::from(RgbF32::from(value))
     }
 }

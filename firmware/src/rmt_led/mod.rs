@@ -46,7 +46,7 @@ impl<T: RmtLed, const N: usize> RmtBuf<T, N> {
     /// Instantiate a new buffer.
     pub const fn new(num_px: usize) -> Self {
         let len = num_px * T::CODES_PER_LED + 1;
-        assert!(len < N);
+        assert!(len <= N);
 
         let mut buf = [T::LO; N];
         buf[len - 1] = PulseCode::end_marker();
@@ -58,10 +58,12 @@ impl<T: RmtLed, const N: usize> RmtBuf<T, N> {
         }
     }
 
+    #[allow(unused)]
     pub const fn empty() -> Self {
         Self::new(0)
     }
 
+    #[allow(unused)]
     pub fn len(&self) -> usize {
         self.len
     }

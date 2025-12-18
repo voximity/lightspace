@@ -1,18 +1,20 @@
-use common::{color::Rgb8, net::UdpMessage};
+use common::{
+    color::RgbaF32,
+    net::{StripMode, UdpMessage},
+};
 use embassy_net::{
     Runner, Stack,
     tcp::TcpSocket,
     udp::{PacketMetadata, UdpSocket},
 };
 use embassy_time::{Duration, Timer};
-use embedded_io::Write;
 use esp_println::println;
 use esp_radio::wifi::{
     ModeConfig, WifiController, WifiDevice, WifiEvent, WifiStationState, scan::ScanConfig,
     sta::StationConfig, station_state,
 };
 
-use crate::{NUM_STRIPS, STRIP_BUFS};
+use crate::{NUM_STRIPS, STATE};
 
 const SSID: &'static str = env!("FW_SSID");
 const PASSWORD: &'static str = env!("FW_PASSWORD");
@@ -87,9 +89,9 @@ pub async fn show_ipv4(stack: Stack<'static>) {
 }
 
 // TODO: unify somewhere else
-fn post_process(color: Rgb8) -> Rgb8 {
-    color.gamma_correct().brightness(0.4)
-}
+// fn post_process(color: Rgb8) -> Rgb8 {
+//     color.gamma_correct().brightness(0.4)
+// }
 
 #[embassy_executor::task]
 pub async fn udp_socket(stack: Stack<'static>) {
@@ -108,7 +110,7 @@ pub async fn udp_socket(stack: Stack<'static>) {
 
         // TODO: may want to eventually confirm that this packet is from a trusted endpoint
 
-        // repeatedly parse as many messages were fit in this packet
+        let mut state = STATE.lock().await;
         while n >= 2 {
             let mut msg_size = 0usize;
             let (msg_type, target, rest) = (cursor[0], cursor[1], &cursor[2..]);
@@ -118,8 +120,14 @@ pub async fn udp_socket(stack: Stack<'static>) {
                 continue 'recv;
             }
 
-            let mut strips = STRIP_BUFS.lock().await;
-            let strip = &mut strips[target as usize];
+            if !matches!(
+                state.strips[target as usize].mode,
+                StripMode::Dynamic | StripMode::Hybrid
+            ) {
+                continue 'recv;
+            }
+
+            let strip = &mut state.strips[target as usize];
 
             match UdpMessage::try_from(msg_type) {
                 Ok(UdpMessage::SetBufferToMany) => {
@@ -129,11 +137,13 @@ pub async fn udp_socket(stack: Stack<'static>) {
                         continue 'recv;
                     }
 
-                    _ = strip.rmt_buf.flush();
-                    for rgb in rest[0..(leds * 3)].chunks(3) {
-                        strip
-                            .rmt_buf
-                            .write_color(post_process(Rgb8::new(rgb[0], rgb[1], rgb[2])));
+                    for (src, dst) in rest[0..(leds * 3)].chunks(3).zip(strip.colors.iter_mut()) {
+                        *dst = RgbaF32::new_premultiplied(
+                            src[0] as f32 / 255.0,
+                            src[1] as f32 / 255.0,
+                            src[2] as f32 / 255.0,
+                            1.0,
+                        );
                     }
                 }
 
@@ -144,16 +154,38 @@ pub async fn udp_socket(stack: Stack<'static>) {
                     }
 
                     let (r, g, b) = (cursor[0], cursor[1], cursor[2]);
-                    let leds = strip.info.leds;
-                    _ = strip.rmt_buf.flush();
-                    for _ in 0..leds {
-                        strip.rmt_buf.write_color(post_process(Rgb8 { r, g, b }));
+                    let src = RgbaF32::new_premultiplied(
+                        r as f32 / 255.0,
+                        g as f32 / 255.0,
+                        b as f32 / 255.0,
+                        1.0,
+                    );
+
+                    for dst in strip.colors.iter_mut() {
+                        *dst = src;
                     }
                 }
 
-                Ok(UdpMessage::SetSinglePixel) => todo!(),
+                Ok(UdpMessage::SetBufferToManyAlpha) => {
+                    let leds = strip.info.leds;
+                    msg_size += leds * 4;
+                    if n < msg_size {
+                        continue 'recv;
+                    }
+
+                    for (src, dst) in rest[0..(leds * 4)].chunks(4).zip(strip.colors.iter_mut()) {
+                        *dst = RgbaF32::new_premultiplied(
+                            src[0] as f32 / 255.0,
+                            src[1] as f32 / 255.0,
+                            src[2] as f32 / 255.0,
+                            src[3] as f32 / 255.0,
+                        );
+                    }
+                }
 
                 Err(_) => continue 'recv,
+
+                _ => todo!(),
             }
 
             // shift cursor forward by consumed msg size
@@ -173,7 +205,9 @@ pub async fn tcp_socket(stack: Stack<'static>) {
     loop {
         use embassy_net::tcp::AcceptError;
         match socket.accept(1338).await {
-            Ok(_) => (),
+            Ok(_) => {
+                // TODO: decode into `ServerMessage`
+            }
             Err(AcceptError::ConnectionReset) => {
                 println!("warn: reset on TCP connection");
                 Timer::after_secs(5).await;

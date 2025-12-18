@@ -1,9 +1,11 @@
 pub mod hsvf32;
 pub mod rgb8;
+pub mod rgbaf32;
 pub mod rgbf32;
 
 pub use hsvf32::HsvF32;
 pub use rgb8::Rgb8;
+pub use rgbaf32::RgbaF32;
 pub use rgbf32::RgbF32;
 
 pub trait MapColor: Copy {
